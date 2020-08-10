@@ -246,27 +246,38 @@ class FetchData(object):
         if by is not None: data = self._parse_data(data, s_params, v_params, by, scan_prop)
         return data
 
-def _fetch_sd_(edate, rad, start, end):
+def _fetch_sd_(edate, rad, start, end, wd=101):
     """ Fetch SuperDARN data and save to local """
     local = "/tmp/%s_%s.csv"%(edate.strftime("%Y-%m-%d-%H-%M"), rad)
     remote = "slug/sd/%s_%s.csv"%(edate.strftime("%Y-%m-%d-%H-%M"), rad)
-    if not os.path.exists("shibaji7@newriver1.arc.vt.edu:/home/shibaji7/" + remote):
+    import subprocess
+    import pipes
+    def exists(path):
+        status = subprocess.call(
+                ["ssh", "shibaji7@newriver1.arc.vt.edu", "test -f /home/shibaji7/{}".format(pipes.quote(path))])
+        if status == 0: return True
+        if status == 1: return False
+    if not exists(remote):
         fd = FetchData(rad, [start, end])
         beams, _ = fd.fetch_data(v_params=["elv", "v", "w_l", "gflg", "p_l", "slist", "v_e"])
         dic = []
         for b in beams:
             dic.append({"time": b.time, "echo": len(b.v)})        
         rec = pd.DataFrame.from_records(dic)
-        rec["me"] = ala.smooth(rec.echo, 101)
-        rec.me = np.max(rec.me) - np.array(rec.me)
-        rec = rec[(rec.time>=start) & (rec.time<=end)]
-        rec.to_csv(local, header=True, index=False)
-        os.system("scp {local} shibaji7@newriver1.arc.vt.edu:/home/shibaji7/{remote}".format(local=local, remote=remote))
-        os.system("rm "+local)
+        if len(rec) > wd:
+            rec["me"] = ala.smooth(rec.echo, wd)
+            rec.me = np.max(rec.me) - np.array(rec.me)
+            rec = rec[(rec.time>=start) & (rec.time<=end)]
+            rec.to_csv(local, header=True, index=False)
+            os.system("scp {local} shibaji7@newriver1.arc.vt.edu:/home/shibaji7/{remote}".format(local=local, remote=remote))
+            os.system("rm "+local)
     else:
         os.system("scp shibaji7@newriver1.arc.vt.edu:/home/shibaji7/{remote} {local}".format(local=local, remote=remote))
-        rec = pd.read_csv(local, parse_dates=["time"])
-        os.system("rm "+local)
+        if os.path.exists(local):
+            rec = pd.read_csv(local, parse_dates=["time"])
+            rec = rec[(rec.time>=start) & (rec.time<=end)]
+            os.system("rm "+local)
+        else: rec = pd.DataFrame()
     return rec
 
 if __name__ == "__main__":

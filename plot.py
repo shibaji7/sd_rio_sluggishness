@@ -6,6 +6,8 @@ import datetime as dt
 import matplotlib.dates as mdates
 import pandas as pd
 import statsmodels.api as sm
+from scipy.interpolate import interp1d
+from scipy import array
 
 import numpy as np
 import analysis as ala
@@ -22,6 +24,20 @@ matplotlib.rcParams["ytick.color"] = "k"
 matplotlib.rcParams["xtick.labelsize"] = 10
 matplotlib.rcParams["ytick.labelsize"] = 10
 matplotlib.rcParams["mathtext.default"] = "default"
+
+
+def extrap1d(x,y,kind="linear"):
+    """ This method is used to extrapolate 1D paramteres """
+    interpolator = interp1d(x,y,kind=kind)
+    xs = interpolator.x
+    ys = interpolator.y
+    def pointwise(x):
+        if x < xs[0]: return ys[0]+(x-xs[0])*(ys[1]-ys[0])/(xs[1]-xs[0])
+        elif x > xs[-1]: return ys[-1]+(x-xs[-1])*(ys[-1]-ys[-2])/(xs[-1]-xs[-2])
+        else: return interpolator(x)
+    def ufunclike(xs):
+        return array(list(map(pointwise, array(xs))))
+    return ufunclike
 
 def coloring_axes(ax, atype="left", col="red"):
     ax.spines[atype].set_color(col)
@@ -51,27 +67,27 @@ def example_riom_plot(ev=dt.datetime(2015,3,11,16,22), stn="ott",
     col = "red"
     ax = coloring_axes(axes[0])
     font["color"] = col
-    ax.semilogy(gos.times,gos.B_FLUX,col,linewidth=0.75)
-    ax.axvline(gos.set_index("times").B_FLUX.idxmax(), color=col, linewidth=0.6)
+    ax.semilogy(gos.times,gos.b_flux,col,linewidth=0.75)
+    ax.axvline(gos.set_index("times").b_flux.idxmax(), color=col, linewidth=0.6)
     ax.set_ylim(1e-6,1e-3)
-    ax.set_ylabel("Solar Flux\n"+r"($Wm^{-2}$)",fontdict=font)
+    ax.set_ylabel("solar flux\n"+r"($wm^{-2}$)",fontdict=font)
     font["color"] = "k"
-    ax.set_xlabel("Time (UT)",fontdict=font)
+    ax.set_xlabel("time (ut)",fontdict=font)
     ax = coloring_twaxes(ax.twinx())
     ax.plot(riom.times, riom.absorption,"ko", markersize=1)
     ax.axvline(riom.set_index("times").absorption.idxmax(), color="k", linewidth=0.6)
-    ax.grid(False)
+    ax.grid(false)
     ax.set_xlim(start,end)
     ax.set_ylim(-.1, 3.)
-    dx = (riom.set_index("times").absorption.idxmax()-gos.set_index("times").B_FLUX.idxmax()).total_seconds()
+    dx = (riom.set_index("times").absorption.idxmax()-gos.set_index("times").b_flux.idxmax()).total_seconds()
     ax.text(0.54,0.3,r"$\bar{\delta}$=%ds"%(dx),horizontalalignment="center",
-                    verticalalignment="center", transform=ax.transAxes,fontdict=fontT, rotation=90)
+                    verticalalignment="center", transform=ax.transaxes,fontdict=fontt, rotation=90)
     ax.set_yticklabels([])
     font["color"] = "darkgreen"
-    ax.text(0.7,1.05,"Station - OTT, 11 March 2015, Universal Time",horizontalalignment="center",
-                            verticalalignment="center", transform=ax.transAxes,fontdict=font)
+    ax.text(0.7,1.05,"station - ott, 11 march 2015, universal time",horizontalalignment="center",
+                            verticalalignment="center", transform=ax.transaxes,fontdict=font)
     font["color"] = "k"
-    ax.text(.9,.9,"(a)",horizontalalignment="center",verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
+    ax.text(.9,.9,"(a)",horizontalalignment="center",verticalalignment="center", transform=ax.transaxes,fontdict=fontt)
 
     fslope = ala.slope_analysis(np.log10(gos.B_FLUX),gos.times.tolist())
     rslope = ala.slope_analysis(riom.absorption.tolist(), riom.times.tolist(), xT=120)
@@ -287,6 +303,83 @@ class Statistics(object):
             _o["cossza"], _o["lat"], _o["lt"], _o["logfmax"] = [cossza]*L, [lat]*L, lt, [logfmax]*L
         return _o
 
+    def _img_(self):
+        fig, axes = plt.subplots(figsize=(5,5.5),nrows=2,ncols=2,dpi=130, sharey="row")
+        fig.subplots_adjust(hspace=0.3)
+        self.dat.dt = np.abs(self.dat.dt)
+        df = self.dat
+        if self.args.acase == 1 and not self.args.rad:
+            df = df[(df.dt>20) & (df.sza<140) & (df.sza>60)]
+            ymax, ymin = 130, 50
+        if self.args.acase == 2 and not self.args.rad:
+            df = df[(df.dt>200) & (df.sza<140) & (df.sza>60)]
+        if self.args.acase == 2 and self.args.rad:
+            df = df[(df.dt!=0) & (df.dt!=360)]
+            szamax, szamin = 130, 50
+        df["cossza"] = df.sza.transform(lambda x: np.cos(np.deg2rad(x)))
+        df["logfmax"] = df.fmax.transform(lambda x: np.log10(x))
+        df = df.sort_values(by="sza")
+        r = self._model_(df[["cossza","lat","logfmax","lt"]].values, df.dt)
+        x = self._create_x_(df.cossza.tolist(), np.mean(df.lat), np.mean(df.logfmax), np.mean(df["lt"]), lp="cossza")
+        ax = axes[0, 0]
+        ax.semilogy(df.sza, df.dt, linestyle="None", marker="o", markersize=2, color="k", linewidth=1, alpha=0.5)
+        o = r.get_prediction(x[["cossza","lat","logfmax","lt"]].values)
+        m, v = o.predicted_mean, np.sqrt(o.var_pred_mean)
+        ax.plot(df.sza, o.predicted_mean, "r-", linewidth=0.75, alpha=0.8)
+        ax.fill_between(df.sza, m - 1.98*v, m + 1.98*v, color="r", alpha=0.2)
+        ax.set_xlim(50,130)
+        ax.set_ylabel(r"$\bar{\delta}_s$ (sec)",fontdict=font)
+        ax.set_xlabel(r"$\chi$"+" (deg)",fontdict=font)
+        ax.text(0.9,0.9,"(a)", horizontalalignment="center",
+                verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
+
+        df = df.sort_values(by="lat")
+        r = self._model_(df[["cossza","lat","logfmax","lt"]].values, df.dt)
+        x = self._create_x_(np.mean(df.cossza), df.lat.tolist(), np.mean(df.logfmax), np.mean(df["lt"]), lp="lat")
+        ax = axes[0, 1]
+        ax.semilogy(df.lat, df.dt, linestyle="None", marker="o", markersize=2, color="k", linewidth=1, alpha=0.5)
+        o = r.get_prediction(x[["cossza","lat","logfmax","lt"]].values)
+        m, v = o.predicted_mean, np.sqrt(o.var_pred_mean)
+        ax.plot(df.lat, o.predicted_mean, "r-", linewidth=0.75, alpha=0.8)
+        ax.fill_between(df.lat, m - 1.98*v, m + 1.98*v, color="r", alpha=0.2)
+        ax.set_xlabel(r"$\phi$"+" (deg)",fontdict=font)
+        ax.text(0.9,0.9,"(b)", horizontalalignment="center",
+                verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
+
+        df = df.sort_values(by="lt")
+        r = self._model_(df[["cossza","lat","logfmax","lt"]].values, df.dt)
+        x = self._create_x_(np.mean(df.cossza), np.mean(df.lat), np.mean(df.logfmax), df["lt"].tolist(), lp="lt")
+        ax = axes[1,0]
+        ax.semilogy(df["lt"], df.dt, linestyle="None", marker="o", markersize=2, color="k", linewidth=1, alpha=0.5)
+        o = r.get_prediction(x[["cossza","lat","logfmax","lt"]].values)
+        m, v = o.predicted_mean, np.sqrt(o.var_pred_mean)
+        ax.plot(df["lt"], o.predicted_mean, "r-", linewidth=0.75, alpha=0.8)
+        ax.fill_between(df["lt"], m - 1.98*v, m + 1.98*v, color="r", alpha=0.2)
+        ax.set_xlim(0, 24)
+        ax.set_ylabel(r"$\bar{\delta}_s$ (sec)",fontdict=font)
+        ax.set_xlabel("LT (Hours)",fontdict=font)
+        ax.text(0.9,0.9,"(c)", horizontalalignment="center",
+                verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
+
+        df = df.sort_values(by="logfmax")
+        r = self._model_(df[["cossza","lat","logfmax","lt"]].values, df.dt)
+        x = self._create_x_(np.mean(df.cossza), np.mean(df.lat), df.logfmax.tolist(), np.mean(df["lt"]), lp="logfmax")
+        ax = axes[1,1]
+        ax.loglog(df.fmax, df.dt, linestyle="None", marker="o", markersize=2, color="k", linewidth=1, alpha=0.5)
+        o = r.get_prediction(x[["cossza","lat","logfmax","lt"]].values)
+        m, v = o.predicted_mean, np.sqrt(o.var_pred_mean)
+        ax.plot(df.fmax, o.predicted_mean, "r-", linewidth=0.75, alpha=0.8)
+        ax.fill_between(df.fmax, m - 1.98*v, m + 1.98*v, color="r", alpha=0.2)
+        ax.set_xlim(1e-4,1e-3)
+        ax.tick_params(axis="x", which="both", rotation=30)
+        ax.set_xlabel(r"$I_{\infty}^{max}$"+" ("+r"$Wm^{-2}$)",fontdict=font)
+        ax.text(0.9,0.9,"(d)", horizontalalignment="center",
+                verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
+
+        fig.savefig(self.fname, bbox_inches="tight")
+        ala.anova_ml(self.args)
+        return
+
     def _fig_(self):
         fig, axes = plt.subplots(figsize=(10,6),nrows=3,ncols=5,dpi=150, sharey="row", sharex="col")
         tags = [["(a-1)","(b-1)","(c-1)","(d-1)","(e-1)"],
@@ -338,7 +431,6 @@ class Statistics(object):
             ax.text(0.9,0.9,tags[i][2], horizontalalignment="center",
                     verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
 
-
             df = df.sort_values(by="logfmax")
             r = self._model_(df[["cossza","lat","logfmax","lt"]].values, df.dt)
             x = self._create_x_(np.mean(df.cossza), np.mean(df.lat), df.logfmax.tolist(), np.mean(df["lt"]), lp="logfmax")
@@ -386,3 +478,50 @@ class Statistics(object):
         fig.savefig(self.fname, bbox_inches="tight")
         ala.anova(self.args)
         return
+
+def plot_rio_ala(gos, riom, fslope, rslope, start, end,  fname):
+    fig, ax = plt.subplots(figsize=(3,3),nrows=1,ncols=1,dpi=120)
+    col="red"
+    ax = coloring_axes(ax)
+    ax.semilogy(gos.times,gos.B_FLUX,col,linewidth=0.75)
+    ax.axvline(fslope, color=col, linewidth=0.6, ls="--")
+    ax.set_ylim(1e-6,1e-3)
+    ax.set_xlabel("Time (UT)",fontdict=font)
+    ax.set_ylabel(r"$Wm^{-2}$",fontdict=font)
+    ax = coloring_twaxes(ax.twinx())
+    ax.plot(riom.times, riom.absorption,"ko", markersize=1)
+    ax.grid(False)
+    ax.set_xlim(start,end)
+    ax.set_ylim(-.1, 3.)
+    if rslope is not None:
+        ax.axvline(rslope, color="k", linewidth=0.6, linestyle="--")
+        ax.set_ylabel(r"$\beta$, dB",fontdict=font)
+        dy = (rslope-fslope).total_seconds()
+        ax.text(0.27,0.8,r"$\bar{\delta}_s$=%ds"%(dy),horizontalalignment="center",
+                verticalalignment="center", transform=ax.transAxes,fontdict=fontT, rotation=90)
+    fig.savefig(fname, bbox_inches="tight")
+    return
+
+def plot_cdf():
+    from scipy.stats import kstest
+    files = ["csv/rio_c0.csv", "csv/rio_c1.csv", "csv/rio_c2.csv", "csv/rad_c1.csv", "csv/rad_c2.csv"]
+    labels = [r"$\bar{\delta}^{rio}$", r"$\bar{\delta}_{s}^{rio}$", r"$\bar{\delta}_{c}^{rio}$",
+            r"$\bar{\delta}_{s}^{rad}$", r"$\bar{\delta}_{c}^{rad}$"]
+    fig, ax = plt.subplots(figsize=(3,3),nrows=1,ncols=1,dpi=90)
+    for l, f in enumerate(files):
+        dat = pd.read_csv(f)
+        x = np.log10(np.abs(dat.dt))
+        x, y = sorted(x), np.arange(len(x)) / len(x)
+        ax.plot(x, y, ls="--", lw=0.75, alpha=0.7, label=labels[l])
+        ax.set_xlim(1,4)
+        ax.set_ylim(0,1)
+        for fu in files:
+            du = pd.read_csv(fu)
+            xu = np.log10(np.abs(du.dt))
+            xu = sorted(xu)
+            print(kstest(x, xu))
+    ax.legend(loc=4, fontsize=8)
+    ax.set_xlabel(r"$log_{10}(\bar{\delta}_{*})$ (sec)",fontdict=font)
+    ax.set_ylabel(r"CDF",fontdict=font)
+    fig.savefig("images/cdf.png", bbox_inches="tight")
+    return
