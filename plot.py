@@ -504,15 +504,18 @@ def plot_rio_ala(gos, riom, fslope, rslope, start, end,  fname):
 
 def plot_cdf():
     from scipy.stats import kstest
+    import scipy.stats as stats
     files = ["csv/rio_c0.csv", "csv/rio_c1.csv", "csv/rio_c2.csv", "csv/rad_c1.csv", "csv/rad_c2.csv"]
     labels = [r"$\bar{\delta}^{rio}$", r"$\bar{\delta}_{s}^{rio}$", r"$\bar{\delta}_{c}^{rio}$",
             r"$\bar{\delta}_{s}^{rad}$", r"$\bar{\delta}_{c}^{rad}$"]
     fig, ax = plt.subplots(figsize=(3,3),nrows=1,ncols=1,dpi=90)
+    C = ["r", "darkgreen", "blue", "black", "m"]
     for l, f in enumerate(files):
         dat = pd.read_csv(f)
+        dat = dat[np.abs(dat.dt)>0]
         x = np.log10(np.abs(dat.dt))
         x, y = sorted(x), np.arange(len(x)) / len(x)
-        ax.plot(x, y, ls="--", lw=0.75, alpha=0.7, label=labels[l])
+        ax.plot(x, y, lw=0.75, alpha=0.7, label=labels[l], color=C[l])
         ax.set_xlim(1,4)
         ax.set_ylim(0,1)
         for fu in files:
@@ -520,8 +523,17 @@ def plot_cdf():
             xu = np.log10(np.abs(du.dt))
             xu = sorted(xu)
             print(kstest(x, xu))
-    ax.legend(loc=4, fontsize=8)
+    ax.legend(loc=4, fontsize=7)
     ax.set_xlabel(r"$log_{10}(\bar{\delta}_{*})$ (sec)",fontdict=font)
     ax.set_ylabel(r"CDF",fontdict=font)
+
+    #for l, f in enumerate(files):
+    #    dat = pd.read_csv(f)
+    #    dat = dat[np.abs(dat.dt)>0]
+    #    x = np.log10(np.abs(dat.dt))
+    #    fit_alpha, fit_loc, fit_beta = stats.gamma.fit(x)
+    #    mx = np.linspace(1,4,100)
+    #    ax.plot(mx, stats.gamma.pdf(mx, fit_alpha, fit_loc, fit_beta), lw=0.75, alpha=0.7, label=labels[l])
+    #ax.legend(loc=4, fontsize=8)
     fig.savefig("images/cdf.png", bbox_inches="tight")
     return
