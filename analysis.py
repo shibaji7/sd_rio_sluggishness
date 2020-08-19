@@ -196,7 +196,7 @@ def anova_ml(args):
         res = models[k].fit()
         response.append(res)
         print(res.summary().as_text())
-    return response
+    return response[0]
 
 def get_LT(lat, lon, d):
     tf = TimezoneFinder()

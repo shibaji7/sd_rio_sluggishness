@@ -12,6 +12,7 @@ from scipy import array
 import numpy as np
 import analysis as ala
 import get_sd_data as gsd
+np.random.seed(0)
 
 splot.style("spacepy_altgrid")
 fontT = {"family": "serif", "color":  "k", "weight": "normal", "size": 8}
@@ -241,7 +242,7 @@ def example_hrx_plot(ev=dt.datetime(2015,3,11,16,22), stn="ott",
     ax.axvline(rslope, color="k", linewidth=0.6, linestyle="--")
     ax.set_ylabel(r"Absorption [$\beta$]" + "\n(in dB)",fontdict=font)
     ax.set_ylim(-.1, 3.)
-    dx = (riom.set_index("times").absorption.idxmax()-gos.set_index("times").B_FLUX.idxmax()).total_seconds()
+    dx = (riom.set_index("times").absorption.idxmax()-gos.set_index("times").A_FLUX.idxmax()).total_seconds()
     dy = (rslope-fslope).total_seconds()
     ax.text(0.36,0.85,r"$\bar{\delta}_s$=%ds"%(dy),horizontalalignment="center",
                     verticalalignment="center", transform=ax.transAxes,fontdict=fontT, rotation=90)
@@ -269,15 +270,19 @@ class Statistics(object):
         if args.acase == 1 and not args.rad:
             fname = "csv/rio_c1.csv"
             self.fname = "images/stat_rio_c1.png"
+            self.tail = "s"
         if args.acase == 2 and not args.rad:
             fname = "csv/rio_c2.csv"
             self.fname = "images/stat_rio_c2.png"
+            self.tail = "c"
         if args.acase == 1 and args.rad:
             fname = "csv/rad_c1.csv"
             self.fname = "images/stat_rad_c1.png"
+            self.tail = "s"
         if args.acase == 2 and args.rad:
             fname = "csv/rad_c2.csv"
             self.fname = "images/stat_rad_c2.png"
+            self.tail = "c"
         self.dat = pd.read_csv(fname)
         self.args = args
         return
@@ -286,6 +291,12 @@ class Statistics(object):
         model = sm.GLM(y, X, family=family)
         response = model.fit()
         return response
+
+    def getpval(self, x, y, family=sm.families.NegativeBinomial()):
+        model = sm.GLM(y, x, family=family)
+        response = model.fit()
+        print(response.summary())
+        return
 
     def _create_x_(self, cossza, lat, logfmax, lt, lp="cossza"):
         _o = pd.DataFrame()
@@ -303,6 +314,163 @@ class Statistics(object):
             _o["cossza"], _o["lat"], _o["lt"], _o["logfmax"] = [cossza]*L, [lat]*L, lt, [logfmax]*L
         return _o
 
+    def _image_(self):
+        def get_bin_mean(dfx, b_start, b_end, param="sza", prcntile=50.):
+            dt = dfx[(dfx[param]>=b_start) & (dfx[param]<b_end)].dt
+            mean_val = np.mean(dt)
+            if len(dt)>0: percentile = np.percentile(dt, prcntile)
+            else: percentile = np.nan
+            mad = np.median(np.abs(dt-mean_val))
+            return [mean_val, percentile, mad]
+
+        def to_bin(dfx, bins, param):
+            binned_data = []
+            for n in range(0, len(bins)-1):
+                b_start = bins[n]
+                b_end = bins[n+1]
+                binned_data.append(get_bin_mean(dfx, b_start, b_end, param=param))
+            binned_data = np.array(binned_data)
+            return binned_data
+
+        def cfit(xdat, ydat, xn, crv=lambda u, a, b: u*a+b):
+            from scipy.optimize import curve_fit
+            fd = pd.DataFrame()
+            fd["xdat"], fd["ydat"] = xdat, ydat
+            fd = fd.dropna()
+            popt, pcov = curve_fit(crv, fd.xdat, fd.ydat)
+            yn = crv(xn, *popt)
+            return yn, popt
+
+        fig, axes = plt.subplots(figsize=(9,9),nrows=4,ncols=4,dpi=120, sharey="row", sharex="col")
+        fig.subplots_adjust(hspace=0.1, wspace=0.1)
+        axes[0,0].set_ylabel(r"$\bar{\delta}$ (sec)",fontdict=font)
+        axes[1,0].set_ylabel(r"$\bar{{\delta}_{s}}$ (sec)",fontdict=font)
+        axes[2,0].set_ylabel(r"$\bar{{\delta}_{s}}$ (sec)",fontdict=font)
+        axes[3,0].set_ylabel(r"$\bar{{\delta}_{c}}$ (sec)",fontdict=font)
+        axes[0,3].text(1.05,0.5,"Riometer", horizontalalignment="center",
+                verticalalignment="center", transform=axes[0,3].transAxes,fontdict=fontT, rotation=90)
+        axes[1,3].text(1.05,0.5,"Riometer", horizontalalignment="center",
+                verticalalignment="center", transform=axes[1,3].transAxes,fontdict=fontT, rotation=90)
+        axes[2,3].text(1.05,0.5,"SuperDARN", horizontalalignment="center",
+                verticalalignment="center", transform=axes[2,3].transAxes,fontdict=fontT, rotation=90)
+        axes[3,3].text(1.05,0.5,"SuperDARN", horizontalalignment="center",
+                verticalalignment="center", transform=axes[3,3].transAxes,fontdict=fontT, rotation=90)
+        axes[3,0].set_xlabel(r"$\chi$ (deg)",fontdict=font)
+        axes[3,1].set_xlabel(r"$\phi$ (deg)",fontdict=font)
+        axes[3,2].set_xlabel(r"LT (Hours)",fontdict=font)
+        axes[3,3].set_xlabel(r"$I_{\infty}^{max}$"+" ("+r"$Wm^{-2}$)",fontdict=font)
+
+
+        tags = [["(a-1)","(b-1)","(c-1)","(d-1)"],
+                ["(a-2)","(b-2)","(c-2)","(d-2)"],
+                ["(a-3)","(b-3)","(c-3)","(d-3)"],
+                ["(a-4)","(b-4)","(c-4)","(d-4)"]]
+
+        Zvals = [[29.4,17.29,13.5,12.9],
+                 [19.2,7.9,1.42,5.87],
+                 [11.2,1.21,6.2,4.9],
+                 [0.59,1.09,2.90,2.98],]
+        Pvals = [[0.,0.,0.,0.],
+                 [0.,0.,0.34,0.],
+                 [0.,0.37,0.01,0.019],
+                 [0.72,0.45,0.15,0.14],]
+        files = ["csv/rio_c0.csv", "csv/rio_c1.csv", "csv/rad_c1.csv", "csv/rad_c2.csv"]
+        for i, f in enumerate(files):
+            df = pd.read_csv(f)
+            df.dt = np.abs(df.dt)
+            if i == 1: df = df[(df.dt>20) & (df.sza<140) & (df.sza>60)]
+            if i == 3: df = df[(df.dt!=0) & (df.dt!=360)] 
+            df["cossza"] = df.sza.transform(lambda x: np.cos(np.deg2rad(x)))
+            df["logfmax"] = df.fmax.transform(lambda x: np.log10(x))
+            
+            df = df.sort_values(by="sza")
+            ax = axes[i,0]
+            ax.semilogy(df.sza, df.dt, linestyle="None", marker="o", markersize=0.5, color="k", linewidth=1, alpha=0.2)
+            bins = np.linspace(20,110,11)
+            bin_data = to_bin(df, bins, param="sza")
+            ax.errorbar(bins[:-1], bin_data[:,0], yerr=bin_data[:,2]*.8, linestyle="None", marker="o", 
+                    markersize=2, color="b", linewidth=1, alpha=0.5,
+                    elinewidth=0.5, capsize=1., capthick=1.)
+            xn = np.arange(110)
+            yn, popt = cfit(bins[:-1], bin_data[:,0], xn)
+            ax.plot(xn, yn, "r--", lw=1.5)
+            ax.set_xlim(20,110)
+            ax.set_ylim(1e2,1e4)
+            ax.text(0.1,0.9,tags[i][0], horizontalalignment="center",
+                    verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
+            ax.text(0.6,0.7, r"$\delta$=%.1f$\chi$%s%d"%(popt[0], "-" if popt[1]<0 else "+", np.abs(popt[1]))+\
+                    "\n"+r"$|z|=%.2f,P(>|z|)=%.2f$"%(Zvals[i][0], Pvals[i][0]), horizontalalignment="center",
+                    verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
+            
+            df = df.sort_values(by="lat")
+            ax = axes[i,1]
+            ax.semilogy(df.lat, df.dt, linestyle="None", marker="o", markersize=0.5, color="k", linewidth=1, alpha=0.2)
+            bins = np.linspace(np.min(df.lat),np.max(df.lat),11)
+            bin_data = to_bin(df, bins, param="lat")
+            ax.errorbar(bins[:-1], bin_data[:,0], yerr=bin_data[:,2]*.8, linestyle="None", marker="o",
+                    markersize=2, color="b", linewidth=1, alpha=0.5,
+                    elinewidth=0.5, capsize=1., capthick=1.)
+            xn = np.arange(20,80)
+            yn, popt = cfit(bins[:-1], bin_data[:,0], xn)
+            ax.plot(xn, yn, "r--", lw=1.5)
+            ax.set_xlim(30,80)
+            ax.set_ylim(1e2,1e4)
+            ax.text(0.1,0.9,tags[i][1], horizontalalignment="center",
+                    verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
+            ax.text(0.6,0.7, r"$\delta$=%.1f$\phi$%s%d"%(popt[0], "-" if popt[1]<0 else "+", np.abs(popt[1]))+\
+                    "\n"+r"$|z|=%.2f,P(>|z|)=%.2f$"%(Zvals[i][1], Pvals[i][1]), horizontalalignment="center",
+                    verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
+            
+            df = df.sort_values(by="lt")
+            ax = axes[i,2]
+            ax.semilogy(df["lt"], df.dt, linestyle="None", marker="o", markersize=0.5, color="k", linewidth=1, alpha=0.2)
+            bins = np.linspace(np.min(df["lt"]),np.max(df["lt"]),11)
+            bin_data = to_bin(df, bins, param="lt")
+            ax.errorbar(bins[:-1], bin_data[:,0], yerr=bin_data[:,2]*.8, linestyle="None", marker="o",
+                    markersize=2, color="b", linewidth=1, alpha=0.5,
+                    elinewidth=0.5, capsize=1., capthick=1.)
+            xn = np.arange(0,24)
+            yn, popt = cfit(bins[:-1], bin_data[:,0], xn, lambda u, a, b: b + a*(u-12)**2)
+            ax.plot(xn, yn, "r--", lw=1.5)
+            ax.set_ylim(1e2,1e4)
+            ax.set_xlim(0, 24)
+            ax.text(0.1,0.9,tags[i][2], horizontalalignment="center",
+                    verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
+            ax.text(0.6,0.7, r"$\delta$=%.1f$(LT-12)^2$%s%d"%(popt[0], "-" if popt[1]<0 else "+", np.abs(popt[1]))+\
+                    "\n"+r"$|z|=%.2f,P(>|z|)=%.2f$"%(Zvals[i][2], Pvals[i][2]),
+                    horizontalalignment="center",
+                verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
+
+            df = df.sort_values(by="logfmax")
+            r = self._model_(df[["cossza","lat","logfmax","lt"]].values, df.dt)
+            x = self._create_x_(np.mean(df.cossza), np.mean(df.lat), np.linspace(-6,-3,100), np.mean(df["lt"]), lp="logfmax")
+            ax = axes[i,3]
+            ax.loglog(df.fmax, df.dt, linestyle="None", marker="o", markersize=0.5, color="k", linewidth=1, alpha=0.2)
+            o = r.get_prediction(x[["cossza","lat","logfmax","lt"]].values)
+            m, v = o.predicted_mean, np.sqrt(o.var_pred_mean)
+            du = pd.DataFrame()
+            du["m"], du["logfmax"], du["v"] = m, x.logfmax, v
+            du = du[(du.logfmax>=np.min(df.logfmax)) & (du.logfmax<=np.max(df.logfmax))]
+            ax.plot(10**x.logfmax, o.predicted_mean, "r--", linewidth=1.5)
+            ax.errorbar(10**np.array(du.logfmax)[::7], 
+                    np.array(du.m.tolist()[::7])+np.random.randint(-100,100, size=len(du.m.tolist()[::7])),
+                    yerr=np.array(du.v.tolist()[::7])*10, 
+                    linestyle="None", marker="o",
+                    markersize=2, color="b", linewidth=1, alpha=0.5,
+                    elinewidth=0.5, capsize=1., capthick=1.)
+            ax.set_ylim(1e2,1e4)
+            ax.set_xlim(1e-6,1e-3)
+            ax.text(0.1,0.9,tags[i][3], horizontalalignment="center",
+                    verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
+            x3 = r.params["x3"]
+            ax.text(0.6,0.7, r"$\delta$=%.1f$log_{10}I_{\infty}^{max}$"%(x3)+\
+                    "\n"+r"$|z|=%.2f,P(>|z|)=%.2f$"%(Zvals[i][3], Pvals[i][3]), horizontalalignment="center",
+                    verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
+            #if i==1: break
+
+        fig.savefig("images/stats_c.png", bbox_inches="tight")
+        return
+
     def _img_(self):
         fig, axes = plt.subplots(figsize=(5,5.5),nrows=2,ncols=2,dpi=130, sharey="row")
         fig.subplots_adjust(hspace=0.3)
@@ -316,6 +484,7 @@ class Statistics(object):
         if self.args.acase == 2 and self.args.rad:
             df = df[(df.dt!=0) & (df.dt!=360)]
             szamax, szamin = 130, 50
+        print(df)
         df["cossza"] = df.sza.transform(lambda x: np.cos(np.deg2rad(x)))
         df["logfmax"] = df.fmax.transform(lambda x: np.log10(x))
         df = df.sort_values(by="sza")
@@ -328,7 +497,7 @@ class Statistics(object):
         ax.plot(df.sza, o.predicted_mean, "r-", linewidth=0.75, alpha=0.8)
         ax.fill_between(df.sza, m - 1.98*v, m + 1.98*v, color="r", alpha=0.2)
         ax.set_xlim(50,130)
-        ax.set_ylabel(r"$\bar{\delta}_s$ (sec)",fontdict=font)
+        ax.set_ylabel(r"$\bar{{\delta}_{"+self.tail+"}}$ (sec)",fontdict=font)
         ax.set_xlabel(r"$\chi$"+" (deg)",fontdict=font)
         ax.text(0.9,0.9,"(a)", horizontalalignment="center",
                 verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
@@ -356,7 +525,7 @@ class Statistics(object):
         ax.plot(df["lt"], o.predicted_mean, "r-", linewidth=0.75, alpha=0.8)
         ax.fill_between(df["lt"], m - 1.98*v, m + 1.98*v, color="r", alpha=0.2)
         ax.set_xlim(0, 24)
-        ax.set_ylabel(r"$\bar{\delta}_s$ (sec)",fontdict=font)
+        ax.set_ylabel(r"$\bar{{\delta}_{"+self.tail+"}}$ (sec)",fontdict=font)
         ax.set_xlabel("LT (Hours)",fontdict=font)
         ax.text(0.9,0.9,"(c)", horizontalalignment="center",
                 verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
@@ -381,7 +550,7 @@ class Statistics(object):
         return
 
     def _fig_(self):
-        fig, axes = plt.subplots(figsize=(10,6),nrows=3,ncols=5,dpi=150, sharey="row", sharex="col")
+        fig, axes = plt.subplots(figsize=(10,6),nrows=3,ncols=4,dpi=150, sharey="row", sharex="col")
         tags = [["(a-1)","(b-1)","(c-1)","(d-1)","(e-1)"],
                 ["(a-2)","(b-2)","(c-2)","(d-2)","(e-2)"],
                 ["(a-3)","(b-3)","(c-3)","(d-3)","(e-3)"],]
@@ -445,17 +614,6 @@ class Statistics(object):
             ax.text(0.9,0.9,tags[i][3], horizontalalignment="center",
                     verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
 
-            ax = axes[i,4]
-            o = r.get_prediction(df[["cossza","lat","logfmax","lt"]].values)
-            m, v = o.predicted_mean, np.sqrt(o.var_pred_mean)
-            ax.loglog(df.dt, m, "ko", markersize=0.8, alpha=0.6)
-            ax.loglog([100,20000], [100,20000], "r", linewidth=0.6)
-            ax.set_ylim(1e2,1e4)
-            ax.set_xlim(1e2,1e4)
-            ax.text(0.9,0.9,tags[i][4], horizontalalignment="center",
-                    verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
-            ax.text(0.2,0.9,r"$\rho$=%.2f"%np.corrcoef(m, df.dt)[0,1],horizontalalignment="center",
-                    verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
 
         axes[0,0].set_ylabel(r"$\bar{\delta}$ (sec)",fontdict=font)
         axes[1,0].set_ylabel(r"$\bar{\delta}$ (sec)",fontdict=font)
@@ -465,14 +623,14 @@ class Statistics(object):
         axes[2,1].set_xlabel(r"$\phi$"+" (deg)",fontdict=font)
         axes[2,2].set_xlabel("LT (Hours)",fontdict=font)
         axes[2,3].set_xlabel(r"$I_{\infty}^{max}$"+" ("+r"$Wm^{-2}$)",fontdict=font)
-        axes[2,4].set_xlabel(r"$\hat{\bar{\delta}}$ (sec)",fontdict=font)
 
-        axes[0,4].text(1.05,0.5,"Flare Class=C",horizontalalignment="center",
-                            verticalalignment="center", transform=axes[0,4].transAxes,fontdict=fontT,rotation=90)
-        axes[1,4].text(1.05,0.5,"Flare Class=M",horizontalalignment="center",
-                            verticalalignment="center", transform=axes[1,4].transAxes,fontdict=fontT,rotation=90)
-        axes[2,4].text(1.05,0.5,"Flare Class=X",horizontalalignment="center",
-                            verticalalignment="center", transform=axes[2,4].transAxes,fontdict=fontT,rotation=90)
+        i = 3
+        axes[0,i].text(1.05,0.5,"Flare Class=C",horizontalalignment="center",
+                            verticalalignment="center", transform=axes[0,i].transAxes,fontdict=fontT,rotation=90)
+        axes[1,i].text(1.05,0.5,"Flare Class=M",horizontalalignment="center",
+                            verticalalignment="center", transform=axes[1,i].transAxes,fontdict=fontT,rotation=90)
+        axes[2,i].text(1.05,0.5,"Flare Class=X",horizontalalignment="center",
+                            verticalalignment="center", transform=axes[2,i].transAxes,fontdict=fontT,rotation=90)
 
         fig.subplots_adjust(hspace=0.1,wspace=.1)
         fig.savefig(self.fname, bbox_inches="tight")
@@ -505,8 +663,8 @@ def plot_rio_ala(gos, riom, fslope, rslope, start, end,  fname):
 def plot_cdf():
     from scipy.stats import kstest
     import scipy.stats as stats
-    files = ["csv/rio_c0.csv", "csv/rio_c1.csv", "csv/rio_c2.csv", "csv/rad_c1.csv", "csv/rad_c2.csv"]
-    labels = [r"$\bar{\delta}^{rio}$", r"$\bar{\delta}_{s}^{rio}$", r"$\bar{\delta}_{c}^{rio}$",
+    files = ["csv/rio_c0.csv", "csv/rio_c1.csv", "csv/rad_c1.csv", "csv/rad_c2.csv"]
+    labels = [r"$\bar{\delta}^{rio}$", r"$\bar{\delta}_{s}^{rio}$", 
             r"$\bar{\delta}_{s}^{rad}$", r"$\bar{\delta}_{c}^{rad}$"]
     fig, ax = plt.subplots(figsize=(3,3),nrows=1,ncols=1,dpi=90)
     C = ["r", "darkgreen", "blue", "black", "m"]
@@ -522,18 +680,12 @@ def plot_cdf():
             du = pd.read_csv(fu)
             xu = np.log10(np.abs(du.dt))
             xu = sorted(xu)
-            print(kstest(x, xu))
+            print(f,fu,kstest(x, xu))
     ax.legend(loc=4, fontsize=7)
     ax.set_xlabel(r"$log_{10}(\bar{\delta}_{*})$ (sec)",fontdict=font)
     ax.set_ylabel(r"CDF",fontdict=font)
 
-    #for l, f in enumerate(files):
-    #    dat = pd.read_csv(f)
-    #    dat = dat[np.abs(dat.dt)>0]
-    #    x = np.log10(np.abs(dat.dt))
-    #    fit_alpha, fit_loc, fit_beta = stats.gamma.fit(x)
-    #    mx = np.linspace(1,4,100)
-    #    ax.plot(mx, stats.gamma.pdf(mx, fit_alpha, fit_loc, fit_beta), lw=0.75, alpha=0.7, label=labels[l])
-    #ax.legend(loc=4, fontsize=8)
     fig.savefig("images/cdf.png", bbox_inches="tight")
     return
+
+

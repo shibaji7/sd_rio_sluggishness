@@ -36,6 +36,7 @@ if __name__ == "__main__":
     if args.case == 6: ala.SDStats(args)._exe_()
     if args.case == 7: plot.Statistics(args)._img_()
     if args.case == 8: plot.plot_cdf()
+    if args.case == 9: plot.Statistics(args)._image_()
 
     os.system("rm *.log")
     os.system("rm -rf __pycache__/")

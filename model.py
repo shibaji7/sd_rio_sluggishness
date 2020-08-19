@@ -92,7 +92,7 @@ ax.tick_params(axis="y", which="both", colors=col)
 ax.yaxis.label.set_color(col)
 font["color"] = col
 ax.loglog(Iq, ne, "r--")
-#ax.set_ylim(1e7,1e11)
+ax.set_ylim(1e9,1e13)
 ax.set_xlim(1e-6,1e-2)
 ax.set_ylabel(r"$N_e^{max}$ (in "+r"$m^{-3}$)",fontdict=font)
 ax.text(0.9,0.5,"(a)",horizontalalignment="center",
@@ -111,13 +111,14 @@ ax.set_ylabel(r"$\bar{\delta}$ (in "+r"sec)",fontdict=font)
 ax.set_xticklabels([])
 
 ax = axes[1]
+font["color"] = "k"
 ax.set_xlabel(r"$I_{\infty}^{max}$"+" (in "+r"$Wm^{-2}$)",fontdict=font)
 ax.set_ylabel(r"$\alpha_{eff}$ (in "+r"$m^{3} sec^{-1})$",fontdict=font)
 ax.axhspan(ymin=1e-13,ymax=3e-13,color="m",alpha=0.4)
 ax.axhspan(ymax=1e-11,ymin=1e-12,color="b",alpha=0.4)
 ax.set_yscale("log")
 ax.set_xscale("log")
-ax.set_ylim(1e-15,1e-10)
+ax.set_ylim(1e-16,1e-10)
 ax.set_xlim(1e-6,1e-2)
 ax.axvline(1e-5,color="orange",ls="--",linewidth=0.75)
 ax.axvline(1e-4,color="red",ls="--",linewidth=0.75)
