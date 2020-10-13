@@ -107,15 +107,15 @@ font["color"] = col
 ax.loglog(Iq, dtm, "blue",linewidth=0.75)
 ax.grid(False)
 ax.set_xlim(1e-6,1e-2)
-ax.set_ylabel(r"$\bar{\delta}$ (in "+r"sec)",fontdict=font)
+ax.set_ylabel(r"$\bar{\delta}^{rio}_{fitted}$ (in "+r"sec)",fontdict=font)
 ax.set_xticklabels([])
 
 ax = axes[1]
 font["color"] = "k"
 ax.set_xlabel(r"$I_{\infty}^{max}$"+" (in "+r"$Wm^{-2}$)",fontdict=font)
 ax.set_ylabel(r"$\alpha_{eff}$ (in "+r"$m^{3} sec^{-1})$",fontdict=font)
-ax.axhspan(ymin=1e-13,ymax=3e-13,color="m",alpha=0.4)
-ax.axhspan(ymax=1e-11,ymin=1e-12,color="b",alpha=0.4)
+ax.axhspan(ymin=1e-13,ymax=3e-13,color="r",alpha=0.6)
+ax.axhspan(ymax=1e-11,ymin=1e-12,color="b",alpha=0.6)
 ax.set_yscale("log")
 ax.set_xscale("log")
 ax.set_ylim(1e-16,1e-10)

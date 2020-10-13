@@ -343,10 +343,10 @@ class Statistics(object):
 
         fig, axes = plt.subplots(figsize=(9,9),nrows=4,ncols=4,dpi=120, sharey="row", sharex="col")
         fig.subplots_adjust(hspace=0.1, wspace=0.1)
-        axes[0,0].set_ylabel(r"$\bar{\delta}$ (sec)",fontdict=font)
-        axes[1,0].set_ylabel(r"$\bar{{\delta}_{s}}$ (sec)",fontdict=font)
-        axes[2,0].set_ylabel(r"$\bar{{\delta}_{s}}$ (sec)",fontdict=font)
-        axes[3,0].set_ylabel(r"$\bar{{\delta}_{c}}$ (sec)",fontdict=font)
+        axes[0,0].set_ylabel(r"$\bar{\delta}^{rio}$ (sec)",fontdict=font)
+        axes[1,0].set_ylabel(r"$\bar{{\delta}}_{s}^{rio}$ (sec)",fontdict=font)
+        axes[2,0].set_ylabel(r"$\bar{{\delta}}_{s}^{SD}$ (sec)",fontdict=font)
+        axes[3,0].set_ylabel(r"$\bar{{\delta}}_{c}^{SD}$ (sec)",fontdict=font)
         axes[0,3].text(1.05,0.5,"Riometer", horizontalalignment="center",
                 verticalalignment="center", transform=axes[0,3].transAxes,fontdict=fontT, rotation=90)
         axes[1,3].text(1.05,0.5,"Riometer", horizontalalignment="center",
@@ -369,11 +369,11 @@ class Statistics(object):
         Zvals = [[29.4,17.29,13.5,12.9],
                  [19.2,7.9,1.42,5.87],
                  [11.2,1.21,6.2,4.9],
-                 [0.59,1.09,2.90,2.98],]
+                 [0.59,1.09,3.90,4.5],]
         Pvals = [[0.,0.,0.,0.],
                  [0.,0.,0.34,0.],
                  [0.,0.37,0.01,0.019],
-                 [0.72,0.45,0.15,0.14],]
+                 [0.72,0.45,0.043,0.041],]
         files = ["csv/rio_c0.csv", "csv/rio_c1.csv", "csv/rad_c1.csv", "csv/rad_c2.csv"]
         for i, f in enumerate(files):
             df = pd.read_csv(f)
@@ -398,7 +398,7 @@ class Statistics(object):
             ax.set_ylim(1e2,1e4)
             ax.text(0.1,0.9,tags[i][0], horizontalalignment="center",
                     verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
-            ax.text(0.6,0.7, r"$\delta$=%.1f$\chi$%s%d"%(popt[0], "-" if popt[1]<0 else "+", np.abs(popt[1]))+\
+            ax.text(0.55,0.7, r"$\delta$=%.1f$\chi$%s%d"%(popt[0], "-" if popt[1]<0 else "+", np.abs(popt[1]))+\
                     "\n"+r"$|z|=%.2f,P(>|z|)=%.2f$"%(Zvals[i][0], Pvals[i][0]), horizontalalignment="center",
                     verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
             
@@ -417,7 +417,7 @@ class Statistics(object):
             ax.set_ylim(1e2,1e4)
             ax.text(0.1,0.9,tags[i][1], horizontalalignment="center",
                     verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
-            ax.text(0.6,0.7, r"$\delta$=%.1f$\phi$%s%d"%(popt[0], "-" if popt[1]<0 else "+", np.abs(popt[1]))+\
+            ax.text(0.55,0.7, r"$\delta$=%.1f$\phi$%s%d"%(popt[0], "-" if popt[1]<0 else "+", np.abs(popt[1]))+\
                     "\n"+r"$|z|=%.2f,P(>|z|)=%.2f$"%(Zvals[i][1], Pvals[i][1]), horizontalalignment="center",
                     verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
             
@@ -436,7 +436,7 @@ class Statistics(object):
             ax.set_xlim(0, 24)
             ax.text(0.1,0.9,tags[i][2], horizontalalignment="center",
                     verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
-            ax.text(0.6,0.7, r"$\delta$=%.1f$(LT-12)^2$%s%d"%(popt[0], "-" if popt[1]<0 else "+", np.abs(popt[1]))+\
+            ax.text(0.55,0.7, r"$\delta$=%.1f$(LT-12)^2$%s%d"%(popt[0], "-" if popt[1]<0 else "+", np.abs(popt[1]))+\
                     "\n"+r"$|z|=%.2f,P(>|z|)=%.2f$"%(Zvals[i][2], Pvals[i][2]),
                     horizontalalignment="center",
                 verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
@@ -463,7 +463,7 @@ class Statistics(object):
             ax.text(0.1,0.9,tags[i][3], horizontalalignment="center",
                     verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
             x3 = r.params["x3"]
-            ax.text(0.6,0.7, r"$\delta$=%.1f$log_{10}I_{\infty}^{max}$"%(x3)+\
+            ax.text(0.55,0.7, r"$\delta$=%.1f$log_{10}I_{\infty}^{max}$"%(x3)+\
                     "\n"+r"$|z|=%.2f,P(>|z|)=%.2f$"%(Zvals[i][3], Pvals[i][3]), horizontalalignment="center",
                     verticalalignment="center", transform=ax.transAxes,fontdict=fontT)
             #if i==1: break
@@ -665,12 +665,15 @@ def plot_cdf():
     import scipy.stats as stats
     files = ["csv/rio_c0.csv", "csv/rio_c1.csv", "csv/rad_c1.csv", "csv/rad_c2.csv"]
     labels = [r"$\bar{\delta}^{rio}$", r"$\bar{\delta}_{s}^{rio}$", 
-            r"$\bar{\delta}_{s}^{rad}$", r"$\bar{\delta}_{c}^{rad}$"]
+            r"$\bar{\delta}_{s}^{SD}$", r"$\bar{\delta}_{c}^{SD}$"]
     fig, ax = plt.subplots(figsize=(3,3),nrows=1,ncols=1,dpi=90)
     C = ["r", "darkgreen", "blue", "black", "m"]
     for l, f in enumerate(files):
         dat = pd.read_csv(f)
+        if l == 1: dat = dat[(dat.dt>20) & (dat.sza<140) & (dat.sza>60)]
+        if l == 3: dat = dat[(dat.dt!=0) & (dat.dt!=360)]
         dat = dat[np.abs(dat.dt)>0]
+        print(np.max(dat.dt), np.min(dat.dt))
         x = np.log10(np.abs(dat.dt))
         x, y = sorted(x), np.arange(len(x)) / len(x)
         ax.plot(x, y, lw=0.75, alpha=0.7, label=labels[l], color=C[l])
