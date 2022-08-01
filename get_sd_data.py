@@ -11,15 +11,17 @@ __maintainer__ = "Chakraborty, S."
 __email__ = "shibaji7@vt.edu"
 __status__ = "Research"
 
-import os
-import numpy as np
-import pandas as pd
+import bz2
 import datetime as dt
 import glob
-import bz2
+import os
+
+import numpy as np
+import pandas as pd
 import pydarn
 
 import analysis as ala
+
 
 class Gate(object):
     """Class object to hold each range cell value"""
@@ -33,7 +35,8 @@ class Gate(object):
         """
         for p in params:
             setattr(self, p, getattr(bm, p)[i])
-        if gflg_type >= 0: setattr(self, "gflg", getattr(bm, "gsflg")[gflg_type][i])
+        if gflg_type >= 0:
+            setattr(self, "gflg", getattr(bm, "gsflg")[gflg_type][i])
         return
 
 
@@ -46,8 +49,13 @@ class Beam(object):
         """
         return
 
-    def set(self, time, d, s_params=["bmnum", "noise.sky", "tfreq", "scan", "nrang"], 
-            v_params=["pwr0", "v", "w_l", "gflg", "p_l", "slist", "v_e"]):
+    def set(
+        self,
+        time,
+        d,
+        s_params=["bmnum", "noise.sky", "tfreq", "scan", "nrang"],
+        v_params=["pwr0", "v", "w_l", "gflg", "p_l", "slist", "v_e"],
+    ):
         """
         Set all parameters
         time: datetime of beam
@@ -57,11 +65,15 @@ class Beam(object):
         """
         self.time = time
         for p in s_params:
-            if p in d.keys(): setattr(self, p, d[p])
-            else: setattr(self, p, None)
+            if p in d.keys():
+                setattr(self, p, d[p])
+            else:
+                setattr(self, p, None)
         for p in v_params:
-            if p in d.keys(): setattr(self, p, d[p])
-            else: setattr(self, p, [])
+            if p in d.keys():
+                setattr(self, p, d[p])
+            else:
+                setattr(self, p, [])
         self.gs_estimation()
         return
 
@@ -76,22 +88,36 @@ class Beam(object):
     def gs_estimation(self):
         """
         Estimate GS flag using different criterion
-        Cases - 
+        Cases -
                 0. Sundeen et al. |v| + w/3 < 30 m/s
                 1. Blanchard et al. |v| + 0.4w < 60 m/s
                 2. Blanchard et al. [2009] |v| - 0.139w + 0.00113w^2 < 33.1 m/s
         """
         self.gsflg = {}
         self.gsflg_prob = {}
-        if len(self.v) > 0 and len(self.w_l) > 0: 
-            self.gsflg[0] = ((np.abs(self.v) + (self.w_l/3.)) < 30.).astype(int)
-            self.gsflg_prob[0] = 1. / (1 + np.exp(np.abs(self.v) + (self.w_l/3.) - 30.))
-        if len(self.v) > 0 and len(self.w_l) > 0: 
-            self.gsflg[1] = ((np.abs(self.v) + (self.w_l*0.4)) < 60.).astype(int)
-            self.gsflg_prob[1] = 1. / (1 + np.exp(np.abs(self.v) + (self.w_l*0.4) - 60.))
-        if len(self.v) > 0 and len(self.w_l) > 0: 
-            self.gsflg[2] = ((np.abs(self.v) - (0.139*self.w_l) + (0.00113*self.w_l**2)) < 33.1).astype(int)
-            self.gsflg_prob[2] = 1. / (1 + np.exp(np.abs(self.v) + (0.139*self.w_l) + (0.00113*self.w_l**2) - 33.1))
+        if len(self.v) > 0 and len(self.w_l) > 0:
+            self.gsflg[0] = ((np.abs(self.v) + (self.w_l / 3.0)) < 30.0).astype(int)
+            self.gsflg_prob[0] = 1.0 / (
+                1 + np.exp(np.abs(self.v) + (self.w_l / 3.0) - 30.0)
+            )
+        if len(self.v) > 0 and len(self.w_l) > 0:
+            self.gsflg[1] = ((np.abs(self.v) + (self.w_l * 0.4)) < 60.0).astype(int)
+            self.gsflg_prob[1] = 1.0 / (
+                1 + np.exp(np.abs(self.v) + (self.w_l * 0.4) - 60.0)
+            )
+        if len(self.v) > 0 and len(self.w_l) > 0:
+            self.gsflg[2] = (
+                (np.abs(self.v) - (0.139 * self.w_l) + (0.00113 * self.w_l**2)) < 33.1
+            ).astype(int)
+            self.gsflg_prob[2] = 1.0 / (
+                1
+                + np.exp(
+                    np.abs(self.v)
+                    + (0.139 * self.w_l)
+                    + (0.00113 * self.w_l**2)
+                    - 33.1
+                )
+            )
         return
 
 
@@ -118,7 +144,8 @@ class Scan(object):
         """
         self.stime = self.beams[0].time
         self.etime = self.beams[-1].time
-        if up: self._populate_avg_params()
+        if up:
+            self._populate_avg_params()
         return
 
     def _populate_avg_params(self):
@@ -160,22 +187,30 @@ class FetchData(object):
         """
         Create file names from date and radar code
         """
-        if self.files is None: self.files = []
+        if self.files is None:
+            self.files = []
         reg_ex = "/sd-data/{year}/fitacf/{rad}/{date}.*.{rad}.fitacf.bz2"
         days = (self.date_range[1] - self.date_range[0]).days + 1
         ent = -1
-        for d in range(-1,days):
+        for d in range(-1, days):
             e = self.date_range[0] + dt.timedelta(days=d)
-            fnames = glob.glob(reg_ex.format(year=e.year, rad=self.rad, date=e.strftime("%Y%m%d")))
+            fnames = glob.glob(
+                reg_ex.format(year=e.year, rad=self.rad, date=e.strftime("%Y%m%d"))
+            )
             fnames.sort()
             for fname in fnames:
                 tm = fname.split(".")[1]
                 sc = fname.split(".")[2]
-                dus = dt.datetime.strptime(fname.split(".")[0].split("/")[-1] + tm + sc, "%Y%m%d%H%M%S")
+                dus = dt.datetime.strptime(
+                    fname.split(".")[0].split("/")[-1] + tm + sc, "%Y%m%d%H%M%S"
+                )
                 due = dus + dt.timedelta(hours=2)
-                if (ent == -1) and (dus <= self.date_range[0] <= due): ent = 0
-                if ent == 0: self.files.append(fname)
-                if (ent == 0) and (dus <= self.date_range[1] <= due): ent = -1
+                if (ent == -1) and (dus <= self.date_range[0] <= due):
+                    ent = 0
+                if ent == 0:
+                    self.files.append(fname)
+                if (ent == 0) and (dus <= self.date_range[1] <= due):
+                    ent = -1
         return
 
     def _parse_data(self, data, s_params, v_params, by, scan_prop):
@@ -188,17 +223,28 @@ class FetchData(object):
                         {"stype": type of scan, "dur": duration in min}
         """
         _b, _s = [], []
-        if self.verbose: print("\n Started converting to beam data.")
+        if self.verbose:
+            print("\n Started converting to beam data.")
         for d in data:
-            time = dt.datetime(d["time.yr"], d["time.mo"], d["time.dy"], d["time.hr"], d["time.mt"], d["time.sc"], d["time.us"])
+            time = dt.datetime(
+                d["time.yr"],
+                d["time.mo"],
+                d["time.dy"],
+                d["time.hr"],
+                d["time.mt"],
+                d["time.sc"],
+                d["time.us"],
+            )
             if time >= self.date_range[0] and time <= self.date_range[1]:
                 bm = Beam()
-                bm.set(time, d, s_params,  v_params)
+                bm.set(time, d, s_params, v_params)
                 _b.append(bm)
-        if self.verbose: print("\n Converted to beam data.")
+        if self.verbose:
+            print("\n Converted to beam data.")
         if by == "scan":
-            if self.verbose: print("\n Started converting to scan data.")
-            scan, sc =  0, Scan(None, None, scan_prop["stype"])
+            if self.verbose:
+                print("\n Started converting to scan data.")
+            scan, sc = 0, Scan(None, None, scan_prop["stype"])
             sc.beams.append(_b[0])
             for d in _b[1:]:
                 if d.scan == 1:
@@ -206,85 +252,121 @@ class FetchData(object):
                     _s.append(sc)
                     sc = Scan(None, None, scan_prop["stype"])
                     sc.beams.append(d)
-                else: sc.beams.append(d)
-            if self.verbose: print("\n Converted to scan data.")
+                else:
+                    sc.beams.append(d)
+            if self.verbose:
+                print("\n Converted to scan data.")
         return _b, _s
 
-    def convert_to_pandas(self, beams, s_params=["bmnum", "noise.sky", "tfreq", "scan", "nrang", "time"],
-            v_params=["elv", "v", "w_l", "gflg", "p_l", "slist", "v_e"]):
+    def convert_to_pandas(
+        self,
+        beams,
+        s_params=["bmnum", "noise.sky", "tfreq", "scan", "nrang", "time"],
+        v_params=["elv", "v", "w_l", "gflg", "p_l", "slist", "v_e"],
+    ):
         """
         Convert the beam data into dataframe
         """
-        _o = dict(zip(s_params+v_params, ([] for _ in s_params+v_params)))
+        _o = dict(zip(s_params + v_params, ([] for _ in s_params + v_params)))
         for b in beams:
             l = len(getattr(b, "slist"))
             for p in v_params:
                 _o[p].extend(getattr(b, p))
             for p in s_params:
-                _o[p].extend([getattr(b, p)]*l)
+                _o[p].extend([getattr(b, p)] * l)
 
         return pd.DataFrame.from_records(_o)
 
-    def fetch_data(self, s_params=["bmnum", "noise.sky", "tfreq", "scan", "nrang"],
-                        v_params=["pwr0", "v", "w_l", "gflg", "p_l", "slist", "v_e"],
-                        by="beam", scan_prop={"dur": 1, "stype": "normal"}):
+    def fetch_data(
+        self,
+        s_params=["bmnum", "noise.sky", "tfreq", "scan", "nrang"],
+        v_params=["pwr0", "v", "w_l", "gflg", "p_l", "slist", "v_e"],
+        by="beam",
+        scan_prop={"dur": 1, "stype": "normal"},
+    ):
         """
         Fetch data from file list and return the dataset
         params: parameter list to fetch
         by: sort data by beam or scan
-        scan_prop: provide scan properties if by='scan' 
+        scan_prop: provide scan properties if by='scan'
                    {"stype": type of scan, "dur": duration in min}
         """
         data = []
         for f in self.files:
             with bz2.open(f) as fp:
                 fs = fp.read()
-            if self.verbose: print("Read file - ", f)
+            if self.verbose:
+                print("Read file - ", f)
             reader = pydarn.SDarnRead(fs, True)
             records = reader.read_fitacf()
             data += records
-        if by is not None: data = self._parse_data(data, s_params, v_params, by, scan_prop)
+        if by is not None:
+            data = self._parse_data(data, s_params, v_params, by, scan_prop)
         return data
 
+
 def _fetch_sd_(edate, rad, start, end, wd=101):
-    """ Fetch SuperDARN data and save to local """
-    local = "/tmp/%s_%s.csv"%(edate.strftime("%Y-%m-%d-%H-%M"), rad)
-    remote = "slug/sd/%s_%s.csv"%(edate.strftime("%Y-%m-%d-%H-%M"), rad)
+    """Fetch SuperDARN data and save to local"""
+    local = "/tmp/%s_%s.csv" % (edate.strftime("%Y-%m-%d-%H-%M"), rad)
+    remote = "slug/sd/%s_%s.csv" % (edate.strftime("%Y-%m-%d-%H-%M"), rad)
     import subprocess
     import pipes
+
     def exists(path):
         status = subprocess.call(
-                ["ssh", "shibaji7@newriver1.arc.vt.edu", "test -f /home/shibaji7/{}".format(pipes.quote(path))])
-        if status == 0: return True
-        if status == 1: return False
+            [
+                "ssh",
+                "shibaji7@newriver1.arc.vt.edu",
+                "test -f /home/shibaji7/{}".format(pipes.quote(path)),
+            ]
+        )
+        if status == 0:
+            return True
+        if status == 1:
+            return False
+
     if not exists(remote):
         fd = FetchData(rad, [start, end])
-        beams, _ = fd.fetch_data(v_params=["elv", "v", "w_l", "gflg", "p_l", "slist", "v_e"])
+        beams, _ = fd.fetch_data(
+            v_params=["elv", "v", "w_l", "gflg", "p_l", "slist", "v_e"]
+        )
         dic = []
         for b in beams:
-            dic.append({"time": b.time, "echo": len(b.v)})        
+            dic.append({"time": b.time, "echo": len(b.v)})
         rec = pd.DataFrame.from_records(dic)
         if len(rec) > wd:
             rec["me"] = ala.smooth(rec.echo, wd)
             rec.me = np.max(rec.me) - np.array(rec.me)
-            rec = rec[(rec.time>=start) & (rec.time<=end)]
+            rec = rec[(rec.time >= start) & (rec.time <= end)]
             rec.to_csv(local, header=True, index=False)
-            os.system("scp {local} shibaji7@newriver1.arc.vt.edu:/home/shibaji7/{remote}".format(local=local, remote=remote))
-            os.system("rm "+local)
+            os.system(
+                "scp {local} shibaji7@newriver1.arc.vt.edu:/home/shibaji7/{remote}".format(
+                    local=local, remote=remote
+                )
+            )
+            os.system("rm " + local)
     else:
-        os.system("scp shibaji7@newriver1.arc.vt.edu:/home/shibaji7/{remote} {local}".format(local=local, remote=remote))
+        os.system(
+            "scp shibaji7@newriver1.arc.vt.edu:/home/shibaji7/{remote} {local}".format(
+                local=local, remote=remote
+            )
+        )
         if os.path.exists(local):
             rec = pd.read_csv(local, parse_dates=["time"])
-            rec = rec[(rec.time>=start) & (rec.time<=end)]
-            os.system("rm "+local)
-        else: rec = pd.DataFrame()
+            rec = rec[(rec.time >= start) & (rec.time <= end)]
+            os.system("rm " + local)
+        else:
+            rec = pd.DataFrame()
     return rec
 
+
 if __name__ == "__main__":
-    fdata = FetchData( "sas", [dt.datetime(2015,3,17,3),
-        dt.datetime(2015,3,17,3,20)] )
+    fdata = FetchData(
+        "sas", [dt.datetime(2015, 3, 17, 3), dt.datetime(2015, 3, 17, 3, 20)]
+    )
     fdata.fetch_data()
     fdata.fetch_data(by="scan", scan_prop={"dur": 2, "stype": "themis"})
     import os
+
     os.system("rm *.log")
     os.system("rm -rf __pycache__/")

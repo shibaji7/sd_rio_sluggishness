@@ -61,19 +61,31 @@ dependencies:
   - zlib=1.2.11=h516909a_1006
   - zstd=1.4.5=h6597ccf_2
   - pip:
+    - aacgmv2==2.6.0
+    - autoflake==1.4
+    - black==22.6.0
+    - click==8.0.4
+    - dataclasses==0.8
     - decorator==4.4.2
     - deepdish==0.3.6
     - ffnet==0.8.4
     - h5py==2.10.0
+    - importlib-metadata==4.8.3
+    - mypy-extensions==0.4.3
     - networkx==2.4
     - numexpr==2.7.1
     - pathlib2==2.3.5
+    - pathspec==0.9.0
+    - platformdirs==2.4.0
     - pydarn==1.0.0.1
+    - pyflakes==2.5.0
     - pyif==0.1
     - pysolar==0.8
     - pyyaml==5.3.1
     - spacepy==0.2.1
     - tables==3.6.1
     - timezonefinder==4.4.0
-prefix: /home/shibaji/anaconda3/envs/slug
-
+    - tomli==1.2.3
+    - typed-ast==1.5.4
+    - typing-extensions==4.1.1
+    - zipp==3.6.0
